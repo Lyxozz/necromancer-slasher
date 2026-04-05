@@ -5,7 +5,7 @@ public class PlayerMovement : MonoBehaviour
 {
     CharacterController controller;
     public float walkSpeed = 5f;       // скорость ходьбы
-    public float runSpeed = 10f;       // скорость бега
+    public float runSpeed = 25f;       // скорость бега (ускорен)
     public float crouchSpeed = 2.5f;   // скорость приседания
     public float slideSpeed = 18f;     // максимальная скорость скольжения
     public float slideDuration = 2f;   // длительность скольжения
@@ -28,6 +28,14 @@ public class PlayerMovement : MonoBehaviour
     bool slideOnCooldown = false;      // кулдаун скольжения
     float wallBounceTimer = 0f;        // таймер кулдауна отскока от стены
 
+    public float dashDistance = 10f;
+    public float dashCooldown = 1f;
+    private float dashTimer = 0f;
+    private bool isDashing = false;
+    private Vector3 dashDirection;
+    public float dashSpeed = 50f;
+    private float lastShiftTime = 0f;
+
     void Start()
     {
         controller = GetComponent<CharacterController>();
@@ -36,7 +44,55 @@ public class PlayerMovement : MonoBehaviour
     }
 
     void Update()
+
     {
+        // Double-tap Shift for dash
+        float doubleTapThreshold = 0.3f;
+        dashTimer -= Time.deltaTime;
+        if (dashTimer < 0f) dashTimer = 0f;
+
+        if (!isDashing && Input.GetKeyDown(KeyCode.LeftShift))
+        {
+            float timeSinceLast = Time.time - lastShiftTime;
+            if (timeSinceLast < doubleTapThreshold && dashTimer <= 0f)
+            {
+                isDashing = true;
+                dashTimer = dashCooldown;
+                Vector3 inputDir = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
+                if (inputDir.sqrMagnitude > 0.01f)
+                {
+                    Vector3 camForward = Camera.main.transform.forward;
+                    Vector3 camRight = Camera.main.transform.right;
+                    camForward.y = 0f;
+                    camRight.y = 0f;
+                    camForward.Normalize();
+                    camRight.Normalize();
+                    dashDirection = (camRight * inputDir.x + camForward * inputDir.z).normalized;
+                }
+                else
+                {
+                    dashDirection = Camera.main.transform.forward;
+                    dashDirection.y = 0f;
+                    dashDirection.Normalize();
+                }
+            }
+            lastShiftTime = Time.time;
+        }
+
+        if (isDashing)
+        {
+            float dashStep = dashSpeed * Time.deltaTime;
+            Vector3 dashMove = dashDirection * dashStep;
+            controller.Move(dashMove);
+            dashDistance -= dashStep;
+            if (dashDistance <= 0f)
+            {
+                isDashing = false;
+                dashDistance = 10f; // сброс для следующего дэша
+            }
+            return; // игнорируем остальное движение во время дэша
+        }
+
         // движение WASD относительно камеры
         float moveX = Input.GetAxis("Horizontal"); // A/D
         float moveZ = Input.GetAxis("Vertical");   // W/S
@@ -194,4 +250,5 @@ public class PlayerMovement : MonoBehaviour
         }
         return false;
     }
+
 }
